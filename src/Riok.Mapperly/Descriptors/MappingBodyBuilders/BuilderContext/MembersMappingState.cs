@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Riok.Mapperly.Configuration;
+using Riok.Mapperly.Configuration.PropertyReferences;
 using Riok.Mapperly.Descriptors.Mappings.MemberMappings;
 using Riok.Mapperly.Helpers;
 using Riok.Mapperly.Symbols.Members;
@@ -205,8 +206,7 @@ internal class MembersMappingState(
 
         switch (sourcePath.Type)
         {
-            case SourceMemberType.Member
-            or SourceMemberType.MemberAlias:
+            case SourceMemberType.Member or SourceMemberType.MemberAlias:
                 _unmappedSourceMemberNames.Remove(sourceMember.Name);
                 break;
             case SourceMemberType.AdditionalMappingMethodParameter:

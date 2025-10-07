@@ -54,13 +54,4 @@ In such a case it is therefore recommended to define the expected property mappi
 
 ## Full `nameof`
 
-Mapperly supports a "fullnameof".
-It can be used to configure property paths using `nameof`.
-Opt-in is done by prefixing the path with `@`.
-
-```csharp
-[MapProperty(nameof(@Car.Make.Id), nameof(CarDto.MakeId))]
-partial CarDto Map(Car car);
-```
-
-`nameof(@Car.Make.Id)` will result in the property path `Make.Id`.
+Mapperly supports a "fullnameof" to simplify these configurations, see [full-nameof](./full-nameof.md).
