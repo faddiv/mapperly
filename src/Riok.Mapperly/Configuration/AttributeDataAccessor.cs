@@ -51,9 +51,12 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
         );
     }
 
-    public IEnumerable<NestedMembersMappingConfiguration> ReadMapNestedPropertiesAttribute(ISymbol symbol)
+    public IReadOnlyList<NestedMembersMappingConfiguration> ReadMapNestedPropertiesAttribute(ISymbol symbol)
     {
-        return Access<MapNestedPropertiesAttribute, NestedMembersMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<MapNestedPropertiesAttribute, NestedMembersMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapNestedPropertiesAttribute, NestedMembersMappingConfiguration>(data)
+        );
     }
 
     public MapperRequiredMappingAttribute? ReadMapperRequiredMappingAttribute(ISymbol symbol)
@@ -80,19 +83,28 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
         );
     }
 
-    public IEnumerable<EnumValueMappingConfiguration> ReadMapEnumValueAttribute(ISymbol symbol)
+    public IReadOnlyList<EnumValueMappingConfiguration> ReadMapEnumValueAttribute(ISymbol symbol)
     {
-        return Access<MapEnumValueAttribute, EnumValueMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<MapEnumValueAttribute, EnumValueMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapEnumValueAttribute, EnumValueMappingConfiguration>(data)
+        );
     }
 
-    public IEnumerable<MapperIgnoreEnumValueConfiguration> ReadMapperIgnoreSourceValueAttribute(ISymbol symbol)
+    public IReadOnlyList<MapperIgnoreEnumValueConfiguration> ReadMapperIgnoreSourceValueAttribute(ISymbol symbol)
     {
-        return Access<MapperIgnoreSourceValueAttribute, MapperIgnoreEnumValueConfiguration>(symbol);
+        return GetOrCreateAttributes<MapperIgnoreSourceValueAttribute, MapperIgnoreEnumValueConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapperIgnoreSourceValueAttribute, MapperIgnoreEnumValueConfiguration>(data)
+        );
     }
 
-    public IEnumerable<MapperIgnoreEnumValueConfiguration> ReadMapperIgnoreTargetValueAttribute(ISymbol symbol)
+    public IReadOnlyList<MapperIgnoreEnumValueConfiguration> ReadMapperIgnoreTargetValueAttribute(ISymbol symbol)
     {
-        return Access<MapperIgnoreTargetValueAttribute, MapperIgnoreEnumValueConfiguration>(symbol);
+        return GetOrCreateAttributes<MapperIgnoreTargetValueAttribute, MapperIgnoreEnumValueConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapperIgnoreTargetValueAttribute, MapperIgnoreEnumValueConfiguration>(data)
+        );
     }
 
     public ComponentModelDescriptionAttributeConfiguration? ReadDescriptionAttribute(ISymbol symbol)
@@ -113,57 +125,87 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 
     public bool HasUseMapperAttribute(ISymbol symbol)
     {
-        return Access<UseMapperAttribute, UseMapperAttribute>(symbol).Any();
+        return symbolAccessor.GetAttributes<UseMapperAttribute>(symbol).Any();
     }
 
-    public IEnumerable<MapperIgnoreSourceAttribute> ReadMapperIgnoreSourceAttributes(ISymbol symbol)
+    public IReadOnlyList<MapperIgnoreSourceAttribute> ReadMapperIgnoreSourceAttributes(ISymbol symbol)
     {
-        return Access<MapperIgnoreSourceAttribute, MapperIgnoreSourceAttribute>(symbol);
+        return GetOrCreateAttributes<MapperIgnoreSourceAttribute, MapperIgnoreSourceAttribute>(
+            symbol,
+            static (a, data) => a.Access<MapperIgnoreSourceAttribute, MapperIgnoreSourceAttribute>(data)
+        );
     }
 
-    public IEnumerable<MapperIgnoreTargetAttribute> ReadMapperIgnoreTargetAttributes(ISymbol symbol)
+    public IReadOnlyList<MapperIgnoreTargetAttribute> ReadMapperIgnoreTargetAttributes(ISymbol symbol)
     {
-        return Access<MapperIgnoreTargetAttribute, MapperIgnoreTargetAttribute>(symbol);
+        return GetOrCreateAttributes<MapperIgnoreTargetAttribute, MapperIgnoreTargetAttribute>(
+            symbol,
+            static (a, data) => a.Access<MapperIgnoreTargetAttribute, MapperIgnoreTargetAttribute>(data)
+        );
     }
 
-    public IEnumerable<MemberValueMappingConfiguration> ReadMapValueAttribute(ISymbol symbol)
+    public IReadOnlyList<MemberValueMappingConfiguration> ReadMapValueAttribute(ISymbol symbol)
     {
-        return Access<MapValueAttribute, MemberValueMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<MapValueAttribute, MemberValueMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapValueAttribute, MemberValueMappingConfiguration>(data)
+        );
     }
 
-    public IEnumerable<MemberMappingConfiguration> ReadMapPropertyAttributes(ISymbol symbol)
+    public IReadOnlyList<MemberMappingConfiguration> ReadMapPropertyAttributes(ISymbol symbol)
     {
-        return Access<MapPropertyAttribute, MemberMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<MapPropertyAttribute, MemberMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapPropertyAttribute, MemberMappingConfiguration>(data)
+        );
     }
 
-    public IEnumerable<IncludeMappingConfiguration> ReadIncludeMappingConfigurationAttributes(ISymbol symbol)
+    public IReadOnlyList<IncludeMappingConfiguration> ReadIncludeMappingConfigurationAttributes(ISymbol symbol)
     {
-        return Access<IncludeMappingConfigurationAttribute, IncludeMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<IncludeMappingConfigurationAttribute, IncludeMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<IncludeMappingConfigurationAttribute, IncludeMappingConfiguration>(data)
+        );
     }
 
-    public IEnumerable<DerivedTypeMappingConfiguration> ReadMapDerivedTypeAttributes(ISymbol symbol)
+    public IReadOnlyList<DerivedTypeMappingConfiguration> ReadMapDerivedTypeAttributes(ISymbol symbol)
     {
-        return Access<MapDerivedTypeAttribute, DerivedTypeMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<MapDerivedTypeAttribute, DerivedTypeMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapDerivedTypeAttribute, DerivedTypeMappingConfiguration>(data)
+        );
     }
 
-    public IEnumerable<DerivedTypeMappingConfiguration> ReadGenericMapDerivedTypeAttributes(ISymbol symbol)
+    public IReadOnlyList<DerivedTypeMappingConfiguration> ReadGenericMapDerivedTypeAttributes(ISymbol symbol)
     {
-        return Access<MapDerivedTypeAttribute<object, object>, DerivedTypeMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<MapDerivedTypeAttribute<object, object>, DerivedTypeMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapDerivedTypeAttribute<object, object>, DerivedTypeMappingConfiguration>(data)
+        );
     }
 
-    public IEnumerable<MemberMappingConfiguration> ReadMapPropertyFromSourceAttributes(ISymbol symbol)
+    public IReadOnlyList<MemberMappingConfiguration> ReadMapPropertyFromSourceAttributes(ISymbol symbol)
     {
-        return Access<MapPropertyFromSourceAttribute, MemberMappingConfiguration>(symbol);
+        return GetOrCreateAttributes<MapPropertyFromSourceAttribute, MemberMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapPropertyFromSourceAttribute, MemberMappingConfiguration>(data)
+        );
     }
 
-    public IEnumerable<UseStaticMapperConfiguration> ReadUseStaticMapperAttributes(ISymbol symbol)
+    public IReadOnlyList<UseStaticMapperConfiguration> ReadUseStaticMapperAttributes(ISymbol symbol)
     {
-        return Access<UseStaticMapperAttribute, UseStaticMapperConfiguration>(symbol);
+        return GetOrCreateAttributes<UseStaticMapperAttribute, UseStaticMapperConfiguration>(
+            symbol,
+            static (a, data) => a.Access<UseStaticMapperAttribute, UseStaticMapperConfiguration>(data)
+        );
     }
 
-    public IEnumerable<UseStaticMapperConfiguration> ReadGenericUseStaticMapperAttributes(ISymbol symbol)
+    public IReadOnlyList<UseStaticMapperConfiguration> ReadGenericUseStaticMapperAttributes(ISymbol symbol)
     {
-        return Access<UseStaticMapperAttribute<object>, UseStaticMapperConfiguration>(symbol);
+        return GetOrCreateAttributes<UseStaticMapperAttribute<object>, UseStaticMapperConfiguration>(
+            symbol,
+            static (a, data) => a.Access<UseStaticMapperAttribute<object>, UseStaticMapperConfiguration>(data)
+        );
     }
 
     public string GetMappingName(IMethodSymbol methodSymbol)
@@ -184,14 +226,6 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
         return TryAccess<NotNullIfNotNullAttribute, NotNullIfNotNullAttribute>(symbol.GetReturnTypeAttributes());
     }
 
-    private IEnumerable<TData> Access<TAttribute, TData>(ISymbol symbol)
-        where TAttribute : Attribute
-        where TData : notnull
-    {
-        var attrDatas = symbolAccessor.GetAttributes<TAttribute>(symbol);
-        return Access<TAttribute, TData>(attrDatas);
-    }
-
     private IEnumerable<TData> TryAccess<TAttribute, TData>(IEnumerable<AttributeData> attributes)
         where TAttribute : Attribute
         where TData : notnull
@@ -200,25 +234,31 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
         return attrDatas.Select(static a => Access<TAttribute, TData>(a, null));
     }
 
-    /// <summary>
-    /// Reads the attribute data and sets it on a newly created instance of <see cref="TData"/>.
-    /// If <see cref="TAttribute"/> has n type parameters,
-    /// <see cref="TData"/> needs to have an accessible ctor with the parameters 0 to n-1 to be of type <see cref="ITypeSymbol"/>.
-    /// <see cref="TData"/> needs to have exactly the same constructors as <see cref="TAttribute"/> with additional type arguments.
-    /// </summary>
-    /// <param name="attributes">The attributes data.</param>
-    /// <typeparam name="TAttribute">The type of the attribute.</typeparam>
-    /// <typeparam name="TData">The type of the data class. If no type parameters are involved, this is usually the same as <see cref="TAttribute"/>.</typeparam>
-    /// <returns>The attribute data.</returns>
-    /// <exception cref="InvalidOperationException">If a property or ctor argument of <see cref="TData"/> could not be read on the attribute.</exception>
-    private IEnumerable<TData> Access<TAttribute, TData>(IEnumerable<AttributeData> attributes)
+    private IReadOnlyList<TData> GetOrCreateAttributes<TAttribute, TData>(
+        ISymbol symbol,
+        Func<AttributeDataAccessor, AttributeData, TData?> createAttribute
+    )
         where TAttribute : Attribute
-        where TData : notnull
     {
-        foreach (var attrData in symbolAccessor.GetAttributes<TAttribute>(attributes))
+        var key = new CacheKey(typeof(TAttribute), symbol);
+        if (_cache.TryGetValue(key, out var cachedAttribute))
         {
-            yield return Access<TAttribute, TData>(attrData, symbolAccessor);
+            return (IReadOnlyList<TData>)(cachedAttribute ?? Enumerable.Empty<TData>());
         }
+
+        var collector = new List<TData>();
+
+        foreach (var attrData in symbolAccessor.GetAttributes<TAttribute>(symbol))
+        {
+            var data = createAttribute(this, attrData);
+            if (data is not null)
+            {
+                collector.Add(data);
+            }
+        }
+
+        _cache.Add(key, collector.AsReadOnly());
+        return collector;
     }
 
     private TData GetOrCreateRequiredAttribute<TAttribute, TData>(

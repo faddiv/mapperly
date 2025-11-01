@@ -223,12 +223,12 @@ public class MapperConfigurationReader
             .Select(x => x.Target)
             .WhereNotNull()
             .ToList();
-        var memberValueConfigurations = _dataAccessor.ReadMapValueAttribute(configRef.Method).ToList();
+        var memberValueConfigurations = _dataAccessor.ReadMapValueAttribute(configRef.Method);
         var memberConfigurations = _dataAccessor
             .ReadMapPropertyAttributes(configRef.Method)
             .Concat(_dataAccessor.ReadMapPropertyFromSourceAttributes(configRef.Method))
             .ToList();
-        var nestedMembersConfigurations = _dataAccessor.ReadMapNestedPropertiesAttribute(configRef.Method).ToList();
+        var nestedMembersConfigurations = _dataAccessor.ReadMapNestedPropertiesAttribute(configRef.Method);
         var ignoreObsolete = _dataAccessor.ReadMapperIgnoreObsoleteMembersAttribute(configRef.Method)?.IgnoreObsoleteStrategy;
         var requiredMapping = _dataAccessor.ReadMapperRequiredMappingAttribute(configRef.Method)?.RequiredMappingStrategy;
 
@@ -278,7 +278,7 @@ public class MapperConfigurationReader
             return MapperConfiguration.Enum;
 
         var configData = _dataAccessor.ReadMapEnumAttribute(configRef.Method);
-        var explicitMappings = _dataAccessor.ReadMapEnumValueAttribute(configRef.Method).ToList();
+        var explicitMappings = _dataAccessor.ReadMapEnumValueAttribute(configRef.Method);
         var ignoredSources = _dataAccessor.ReadMapperIgnoreSourceValueAttribute(configRef.Method).Select(x => x.Value).ToList();
         var ignoredTargets = _dataAccessor.ReadMapperIgnoreTargetValueAttribute(configRef.Method).Select(x => x.Value).ToList();
         var requiredMapping = _dataAccessor.ReadMapperRequiredMappingAttribute(configRef.Method)?.RequiredMappingStrategy;
