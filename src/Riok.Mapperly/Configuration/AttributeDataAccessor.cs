@@ -20,6 +20,7 @@ namespace Riok.Mapperly.Configuration;
 public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 {
     private const char FullNameOfPrefix = '@';
+    private readonly Dictionary<CacheKey, object?> _cache = new();
 
     public static MapperConfiguration ReadMapperDefaultsAttribute(AttributeData attrData)
     {
@@ -28,7 +29,10 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 
     public FormatProviderAttribute ReadFormatProviderAttribute(ISymbol symbol)
     {
-        return Access<FormatProviderAttribute, FormatProviderAttribute>(symbol).First();
+        return GetOrCreateRequiredAttribute<FormatProviderAttribute, FormatProviderAttribute>(
+            symbol,
+            static (a, data) => a.Access<FormatProviderAttribute, FormatProviderAttribute>(data)
+        );
     }
 
     public MapperConfiguration ReadMapperAttribute(ISymbol symbol)
@@ -169,7 +173,7 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
         where TData : notnull
     {
         var attrDatas = symbolAccessor.TryGetAttributes<TAttribute>(attributes);
-        return attrDatas.Select(a => Access<TAttribute, TData>(a));
+        return attrDatas.Select(static a => Access<TAttribute, TData>(a, null));
     }
 
     /// <summary>
@@ -191,6 +195,43 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
         {
             yield return Access<TAttribute, TData>(attrData, symbolAccessor);
         }
+    }
+
+    private TData GetOrCreateRequiredAttribute<TAttribute, TData>(
+        ISymbol symbol,
+        Func<AttributeDataAccessor, AttributeData, TData?> createAttribute
+    )
+        where TAttribute : Attribute
+    {
+        return GetOrCreateAttribute<TAttribute, TData>(symbol, createAttribute)
+            ?? throw new InvalidOperationException($"Attribute {typeof(TAttribute).FullName} not found on {symbol.Name}");
+    }
+
+    private TData? GetOrCreateAttribute<TAttribute, TData>(
+        ISymbol symbol,
+        Func<AttributeDataAccessor, AttributeData, TData?> createAttribute
+    )
+        where TAttribute : Attribute
+    {
+        var key = new CacheKey(typeof(TAttribute), symbol);
+        if (_cache.TryGetValue(key, out var cachedAttribute))
+        {
+            return (TData?)cachedAttribute;
+        }
+
+        var attributeData = symbolAccessor.GetAttributes<TAttribute>(symbol).FirstOrDefault();
+        var data = attributeData is not null ? createAttribute(this, attributeData) : default;
+
+        _cache.Add(key, data);
+
+        return data;
+    }
+
+    private TData Access<TAttribute, TData>(AttributeData attrData)
+        where TAttribute : Attribute
+        where TData : notnull
+    {
+        return Access<TAttribute, TData>(attrData, symbolAccessor);
     }
 
     private static TData Access<TAttribute, TData>(AttributeData attrData, SymbolAccessor? symbolAccessor = null)
@@ -476,4 +517,23 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 
         return true;
     }
+
+    private static TValue? GetSimpleValue<TValue>(AttributeData attrData, string propertyName, TValue? defaultValue = null)
+        where TValue : struct
+    {
+        var value = attrData.NamedArguments.FirstOrDefault(kv => kv.Key == propertyName).Value.Value;
+        if (typeof(TValue).IsEnum && value is int i)
+        {
+            return (TValue)(object)i;
+        }
+
+        if (value is TValue tValue)
+        {
+            return tValue;
+        }
+
+        return defaultValue;
+    }
+
+    private record struct CacheKey(Type Attribute, ISymbol Symbol);
 }
