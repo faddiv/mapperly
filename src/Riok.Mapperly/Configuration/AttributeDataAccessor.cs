@@ -37,12 +37,18 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 
     public MapperConfiguration ReadMapperAttribute(ISymbol symbol)
     {
-        return Access<MapperAttribute, MapperConfiguration>(symbol).First();
+        return GetOrCreateRequiredAttribute<MapperAttribute, MapperConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapperAttribute, MapperConfiguration>(data)
+        );
     }
 
     public MapperIgnoreObsoleteMembersAttribute? ReadMapperIgnoreObsoleteMembersAttribute(ISymbol symbol)
     {
-        return Access<MapperIgnoreObsoleteMembersAttribute, MapperIgnoreObsoleteMembersAttribute>(symbol).FirstOrDefault();
+        return GetOrCreateAttribute<MapperIgnoreObsoleteMembersAttribute, MapperIgnoreObsoleteMembersAttribute>(
+            symbol,
+            static (a, data) => a.Access<MapperIgnoreObsoleteMembersAttribute, MapperIgnoreObsoleteMembersAttribute>(data)
+        );
     }
 
     public IEnumerable<NestedMembersMappingConfiguration> ReadMapNestedPropertiesAttribute(ISymbol symbol)
@@ -52,17 +58,26 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 
     public MapperRequiredMappingAttribute? ReadMapperRequiredMappingAttribute(ISymbol symbol)
     {
-        return Access<MapperRequiredMappingAttribute, MapperRequiredMappingAttribute>(symbol).FirstOrDefault();
+        return GetOrCreateAttribute<MapperRequiredMappingAttribute, MapperRequiredMappingAttribute>(
+            symbol,
+            static (a, data) => a.Access<MapperRequiredMappingAttribute, MapperRequiredMappingAttribute>(data)
+        );
     }
 
     public EnumMemberAttribute? ReadEnumMemberAttribute(ISymbol symbol)
     {
-        return Access<EnumMemberAttribute, EnumMemberAttribute>(symbol).FirstOrDefault();
+        return GetOrCreateAttribute<EnumMemberAttribute, EnumMemberAttribute>(
+            symbol,
+            static (a, data) => a.Access<EnumMemberAttribute, EnumMemberAttribute>(data)
+        );
     }
 
     public EnumConfiguration? ReadMapEnumAttribute(ISymbol symbol)
     {
-        return Access<MapEnumAttribute, EnumConfiguration>(symbol).FirstOrDefault();
+        return GetOrCreateAttribute<MapEnumAttribute, EnumConfiguration>(
+            symbol,
+            static (a, data) => a.Access<MapEnumAttribute, EnumConfiguration>(data)
+        );
     }
 
     public IEnumerable<EnumValueMappingConfiguration> ReadMapEnumValueAttribute(ISymbol symbol)
@@ -82,12 +97,18 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 
     public ComponentModelDescriptionAttributeConfiguration? ReadDescriptionAttribute(ISymbol symbol)
     {
-        return Access<DescriptionAttribute, ComponentModelDescriptionAttributeConfiguration>(symbol).FirstOrDefault();
+        return GetOrCreateAttribute<DescriptionAttribute, ComponentModelDescriptionAttributeConfiguration>(
+            symbol,
+            static (a, data) => a.Access<DescriptionAttribute, ComponentModelDescriptionAttributeConfiguration>(data)
+        );
     }
 
     public UserMappingConfiguration? ReadUserMappingAttribute(ISymbol symbol)
     {
-        return Access<UserMappingAttribute, UserMappingConfiguration>(symbol).FirstOrDefault();
+        return GetOrCreateAttribute<UserMappingAttribute, UserMappingConfiguration>(
+            symbol,
+            static (a, data) => a.Access<UserMappingAttribute, UserMappingConfiguration>(data)
+        );
     }
 
     public bool HasUseMapperAttribute(ISymbol symbol)
@@ -147,7 +168,10 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor)
 
     public string GetMappingName(IMethodSymbol methodSymbol)
     {
-        return Access<NamedMappingAttribute, NamedMappingAttribute>(methodSymbol).Select(e => e.Name).FirstOrDefault() ?? methodSymbol.Name;
+        return GetOrCreateAttribute<NamedMappingAttribute, NamedMappingAttribute>(
+                methodSymbol,
+                static (a, data) => a.Access<NamedMappingAttribute, NamedMappingAttribute>(data)
+            )?.Name ?? methodSymbol.Name;
     }
 
     public bool IsMappingNameEqualTo(IMethodSymbol methodSymbol, string name)
