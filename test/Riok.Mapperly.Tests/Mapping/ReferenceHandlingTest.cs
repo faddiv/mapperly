@@ -167,6 +167,26 @@ public class ReferenceHandlingTest
     }
 
     [Fact]
+    public void ShouldReportRecursiveCtorMembers()
+    {
+        var source = TestSourceBuilder.Mapping(
+            "A",
+            "B",
+            TestSourceBuilderOptions.WithReferenceHandling,
+            "record A(C? Parent)",
+            "record B(D? Parent)",
+            "record C(A? Parent)",
+            "record D(B? Parent)"
+        );
+
+        TestHelper
+            .GenerateMapper(source, TestHelperOptions.AllowDiagnostics)
+            .Should()
+            .HaveDiagnostic(DiagnosticDescriptors.CircularMappingWithoutSetter)
+            .HaveAssertedAllDiagnostics();
+    }
+
+    [Fact]
     public Task ManuallyMappedPropertiesShouldWork()
     {
         var source = TestSourceBuilder.MapperWithBodyAndTypes(

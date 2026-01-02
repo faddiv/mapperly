@@ -240,4 +240,42 @@ public class QueryableProjectionTest
 
         await TestHelper.VerifyGenerator(source);
     }
+
+    [Fact]
+    public void ShouldReportRecursiveInitMembers()
+    {
+        var source = TestSourceBuilder.Mapping(
+            "System.Linq.IQueryable<A>",
+            "System.Linq.IQueryable<B>",
+            "class A { public C? Parent { get; } }",
+            "class B { public D? Parent { get; init; } }",
+            "class C { public A? Parent { get; } }",
+            "class D { public B? Parent { get; init; } }"
+        );
+
+        TestHelper
+            .GenerateMapper(source, TestHelperOptions.AllowDiagnostics)
+            .Should()
+            .HaveDiagnostic(DiagnosticDescriptors.CircularMappingWithoutSetter)
+            .HaveAssertedAllDiagnostics();
+    }
+
+    [Fact]
+    public void ShouldReportRecursiveCtorMembers()
+    {
+        var source = TestSourceBuilder.Mapping(
+            "System.Linq.IQueryable<A>",
+            "System.Linq.IQueryable<B>",
+            "record A(C? Parent)",
+            "record B(D? Parent)",
+            "record C(A? Parent)",
+            "record D(B? Parent)"
+        );
+
+        TestHelper
+            .GenerateMapper(source, TestHelperOptions.AllowDiagnostics)
+            .Should()
+            .HaveDiagnostic(DiagnosticDescriptors.CircularMappingWithoutSetter)
+            .HaveAssertedAllDiagnostics();
+    }
 }
