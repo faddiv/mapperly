@@ -14,7 +14,7 @@ namespace Riok.Mapperly.IntegrationTests
     public class StaticMapperTest : BaseMapperTest
     {
         [Fact]
-        [VersionedSnapshot(Versions.NET6_0)]
+        [VersionedSnapshot(Versions.NET8_0)]
         public Task SnapshotGeneratedSource()
         {
             var path = GetGeneratedMapperFilePath(nameof(StaticTestMapper));
@@ -22,7 +22,7 @@ namespace Riok.Mapperly.IntegrationTests
         }
 
         [Fact]
-        [VersionedSnapshot(Versions.NET6_0 | Versions.NET9_0)]
+        [VersionedSnapshot(Versions.NET8_0 | Versions.NET9_0)]
         public Task RunMappingShouldWork()
         {
             var model = NewTestObj();
@@ -31,7 +31,7 @@ namespace Riok.Mapperly.IntegrationTests
         }
 
         [Fact]
-        [VersionedSnapshot(Versions.NET6_0 | Versions.NET9_0)]
+        [VersionedSnapshot(Versions.NET8_0 | Versions.NET9_0)]
         public Task RunExtensionMappingShouldWork()
         {
             var model = NewTestObj();
@@ -90,6 +90,16 @@ namespace Riok.Mapperly.IntegrationTests
             var obj = NewTestObj();
             var dto = StaticTestMapper.MapGeneric<TestObject, TestObjectDto>(obj);
             dto.IntValue.ShouldBe(obj.IntValue);
+        }
+
+        [Fact]
+        public void GenericExistingTargetShouldWork()
+        {
+            var source = new ExistingObjectTypeA { Value = 10, ValueA = 20 };
+            var target = new ExistingObjectTypeA();
+            StaticTestMapper.MapExistingGeneric(source, target);
+            target.Value.ShouldBe(10);
+            target.ValueA.ShouldBe(20);
         }
 
         [Fact]

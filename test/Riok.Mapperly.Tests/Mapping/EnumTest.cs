@@ -49,6 +49,7 @@ public class EnumTest
         var source = TestSourceBuilder.Mapping(
             "C",
             "E",
+            TestSourceBuilderOptions.AllConversions,
             "class C { public static explicit operator byte(C c) => 0; } }",
             "enum E : byte {A, B, C}"
         );
@@ -443,7 +444,7 @@ public class EnumTest
             $"enum D {{ {targetEnumValues} }}"
         );
 
-        return TestHelper.VerifyGenerator(source, null, testCase);
+        return TestHelper.VerifyGenerator(source, testParams: testCase);
     }
 
     [Theory]
@@ -469,7 +470,7 @@ public class EnumTest
             $"enum D {{ {targetEnumValues} }}"
         );
 
-        return TestHelper.VerifyGenerator(source, null, testCase);
+        return TestHelper.VerifyGenerator(source, testParams: testCase);
     }
 
     [Fact]

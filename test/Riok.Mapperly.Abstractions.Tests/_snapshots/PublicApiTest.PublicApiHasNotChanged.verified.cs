@@ -142,6 +142,7 @@ namespace Riok.Mapperly.Abstractions
         public Riok.Mapperly.Abstractions.PropertyNameMappingStrategy PropertyNameMappingStrategy { get; set; }
         public Riok.Mapperly.Abstractions.RequiredMappingStrategy RequiredEnumMappingStrategy { get; set; }
         public Riok.Mapperly.Abstractions.RequiredMappingStrategy RequiredMappingStrategy { get; set; }
+        public Riok.Mapperly.Abstractions.StackCloningStrategy StackCloningStrategy { get; set; }
         public bool ThrowOnMappingNullMismatch { get; set; }
         public bool ThrowOnPropertyMappingNullMismatch { get; set; }
         public bool UseDeepCloning { get; set; }
@@ -164,6 +165,7 @@ namespace Riok.Mapperly.Abstractions
     public sealed class MapperIgnoreAttribute : System.Attribute
     {
         public MapperIgnoreAttribute() { }
+        public string? Justification { get; set; }
     }
     [System.AttributeUsage(System.AttributeTargets.Method)]
     [System.Diagnostics.Conditional("MAPPERLY_ABSTRACTIONS_SCOPE_RUNTIME")]
@@ -177,6 +179,7 @@ namespace Riok.Mapperly.Abstractions
     public sealed class MapperIgnoreSourceAttribute : System.Attribute
     {
         public MapperIgnoreSourceAttribute(string source) { }
+        public string? Justification { get; set; }
         public string Source { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true)]
@@ -184,6 +187,7 @@ namespace Riok.Mapperly.Abstractions
     public sealed class MapperIgnoreSourceValueAttribute : System.Attribute
     {
         public MapperIgnoreSourceValueAttribute(object source) { }
+        public string? Justification { get; set; }
         public System.Enum? SourceValue { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true)]
@@ -191,6 +195,7 @@ namespace Riok.Mapperly.Abstractions
     public sealed class MapperIgnoreTargetAttribute : System.Attribute
     {
         public MapperIgnoreTargetAttribute(string target) { }
+        public string? Justification { get; set; }
         public string Target { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true)]
@@ -198,6 +203,7 @@ namespace Riok.Mapperly.Abstractions
     public sealed class MapperIgnoreTargetValueAttribute : System.Attribute
     {
         public MapperIgnoreTargetValueAttribute(object target) { }
+        public string? Justification { get; set; }
         public System.Enum? TargetValue { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Method)]
@@ -230,7 +236,9 @@ namespace Riok.Mapperly.Abstractions
         EnumUnderlyingType = 65536,
         ToTargetMethod = 131072,
         StaticConvertMethods = 262144,
+        Expression = 524288,
         All = -1,
+        Default = -5,
     }
     [System.AttributeUsage(System.AttributeTargets.Parameter)]
     [System.Diagnostics.Conditional("MAPPERLY_ABSTRACTIONS_SCOPE_RUNTIME")]
@@ -266,6 +274,8 @@ namespace Riok.Mapperly.Abstractions
     {
         CaseSensitive = 0,
         CaseInsensitive = 1,
+        SnakeCase = 2,
+        UpperSnakeCase = 3,
     }
     [System.Flags]
     public enum RequiredMappingStrategy
@@ -275,19 +285,24 @@ namespace Riok.Mapperly.Abstractions
         Source = 1,
         Target = 2,
     }
+    public enum StackCloningStrategy
+    {
+        PreserveOrder = 0,
+        ReverseOrder = 1,
+    }
     [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field)]
     [System.Diagnostics.Conditional("MAPPERLY_ABSTRACTIONS_SCOPE_RUNTIME")]
     public sealed class UseMapperAttribute : System.Attribute
     {
         public UseMapperAttribute() { }
     }
-    [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=true)]
+    [System.AttributeUsage(System.AttributeTargets.Assembly | System.AttributeTargets.Class, AllowMultiple=true)]
     [System.Diagnostics.Conditional("MAPPERLY_ABSTRACTIONS_SCOPE_RUNTIME")]
     public sealed class UseStaticMapperAttribute : System.Attribute
     {
         public UseStaticMapperAttribute(System.Type mapperType) { }
     }
-    [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=true)]
+    [System.AttributeUsage(System.AttributeTargets.Assembly | System.AttributeTargets.Class, AllowMultiple=true)]
     [System.Diagnostics.Conditional("MAPPERLY_ABSTRACTIONS_SCOPE_RUNTIME")]
     public sealed class UseStaticMapperAttribute<T> : System.Attribute
     {

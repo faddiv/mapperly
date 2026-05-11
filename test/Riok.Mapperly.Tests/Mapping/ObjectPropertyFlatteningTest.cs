@@ -27,6 +27,30 @@ public class ObjectPropertyFlatteningTest
     }
 
     [Fact]
+    public void NameOfSourceWithFullNameOfSegment()
+    {
+        // use nameof(A.Value.Id) but do not use fullnameof.
+        // this should resolve to "Id" and not "Value.Id".
+        var source = TestSourceBuilder.MapperWithBodyAndTypes(
+            "[MapProperty(nameof(A.Value.Id), nameof(B.MyValueId)), MapperIgnoreSource(nameof(source.Value))] partial B Map(A source);",
+            "class A { public string Id { get; } public C Value { get; set; } }",
+            "class B { public string MyValueId { get; set; } }",
+            "class C { public string Id { get; set; } }"
+        );
+
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveSingleMethodBody(
+                """
+                var target = new global::B();
+                target.MyValueId = source.Id;
+                return target;
+                """
+            );
+    }
+
+    [Fact]
     public void ManualFlattenedPropertyWithFullNameOfSourceAndWrongType()
     {
         var source = TestSourceBuilder.MapperWithBodyAndTypes(
@@ -720,7 +744,7 @@ public class ObjectPropertyFlatteningTest
             "class C { public C(string arg) {} public string Id { get; set; } }"
         );
 
-        return TestHelper.VerifyGenerator(source);
+        return TestHelper.VerifyGenerator(source, TestHelperOptions.AllowAndIncludeAllDiagnostics);
     }
 
     [Fact]
@@ -733,7 +757,7 @@ public class ObjectPropertyFlatteningTest
             "class C { public C(string arg) {} public string Id { get; set; } }"
         );
 
-        return TestHelper.VerifyGenerator(source);
+        return TestHelper.VerifyGenerator(source, TestHelperOptions.AllowAndIncludeAllDiagnostics);
     }
 
     [Fact]
@@ -746,7 +770,7 @@ public class ObjectPropertyFlatteningTest
             "class C { public C(string arg) {} public string Id { get; set; } }"
         );
 
-        return TestHelper.VerifyGenerator(source);
+        return TestHelper.VerifyGenerator(source, TestHelperOptions.AllowAndIncludeAllDiagnostics);
     }
 
     [Fact]

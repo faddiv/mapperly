@@ -33,8 +33,6 @@ internal static class MembersMappingStateBuilder
 
         // build all members
         var unmappedSourceMemberNames = GetSourceMemberNames(ctx, mapping);
-        var additionalSourceMembers = GetAdditionalSourceMembers(ctx);
-        var unmappedAdditionalSourceMemberNames = new HashSet<string>(additionalSourceMembers.Keys, StringComparer.Ordinal);
         var targetMembers = GetTargetMembers(ctx, mapping);
 
         // build ignored members
@@ -53,30 +51,25 @@ internal static class MembersMappingStateBuilder
             .Keys.GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
         var unmappedTargetMemberNames = targetMembers.Keys.ToHashSet();
+
+        // Only expose additional parameters as source members when:
+        // 1. The scope is root (this mapping declared the parameters), or
+        // 2. We're in an expression context (inline within the same method scope).
+        // For separate auto-generated method mappings, inherited parent parameters
+        // must not shadow source type members.
+        var parameterScope = ctx.ParameterScope.IsRoot || ctx.IsExpression ? ctx.ParameterScope : ParameterScope.Empty;
+
         return new MembersMappingState(
             unmappedSourceMemberNames,
-            unmappedAdditionalSourceMemberNames,
             unmappedTargetMemberNames,
-            additionalSourceMembers,
             targetMemberCaseMapping,
             targetMembers,
             memberValueConfigsByRootTargetName,
             memberConfigsByRootTargetName,
             configuredTargetMembersByRootName.AsDictionary(),
-            ignoredSourceMemberNames
+            ignoredSourceMemberNames,
+            parameterScope
         );
-    }
-
-    private static IReadOnlyDictionary<string, IMappableMember> GetAdditionalSourceMembers(MappingBuilderContext ctx)
-    {
-        if (ctx.UserMapping is MethodMapping { AdditionalSourceParameters.Count: > 0 } methodMapping)
-        {
-            return methodMapping
-                .AdditionalSourceParameters.Select<MethodParameter, IMappableMember>(p => new ParameterSourceMember(p))
-                .ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase);
-        }
-
-        return new Dictionary<string, IMappableMember>();
     }
 
     private static HashSet<string> GetSourceMemberNames(MappingBuilderContext ctx, IMapping mapping)

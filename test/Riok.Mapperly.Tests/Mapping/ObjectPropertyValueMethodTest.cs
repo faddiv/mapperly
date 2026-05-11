@@ -592,7 +592,7 @@ public class ObjectPropertyValueMethodTest
             "record B(string Value);"
         );
 
-        return TestHelper.VerifyGenerator(source);
+        return TestHelper.VerifyGenerator(source, TestHelperOptions.AllowAndIncludeAllDiagnostics);
     }
 
     [Fact]
@@ -607,6 +607,120 @@ public class ObjectPropertyValueMethodTest
             "record B(string Value);"
         );
 
-        return TestHelper.VerifyGenerator(source);
+        return TestHelper.VerifyGenerator(source, TestHelperOptions.AllowAndIncludeAllDiagnostics);
+    }
+
+    [Fact]
+    public void MethodToMaybeNullTargetPropertyShouldAllowNullableReturnType()
+    {
+        var source = TestSourceBuilder.MapperWithBodyAndTypes(
+            """
+            [MapValue("Value", Use = nameof(BuildValue))] partial B Map(A source);
+            string? BuildValue() => null;
+            """,
+            "class A;",
+            """
+            class B
+            {
+                [System.Diagnostics.CodeAnalysis.MaybeNull]
+                public string Value { get; set; } = default!;
+            }
+            """
+        );
+
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveSingleMethodBody(
+                """
+                var target = new global::B();
+                target.Value = BuildValue();
+                return target;
+                """
+            );
+    }
+
+    [Fact]
+    public void MethodToMaybeNullTargetPropertyShouldAllowNonNullableReturnType()
+    {
+        var source = TestSourceBuilder.MapperWithBodyAndTypes(
+            """
+            [MapValue("Value", Use = nameof(BuildValue))] partial B Map(A source);
+            string BuildValue() => "hello";
+            """,
+            "class A;",
+            """
+            class B
+            {
+                [System.Diagnostics.CodeAnalysis.MaybeNull]
+                public string Value { get; set; } = default!;
+            }
+            """
+        );
+
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveSingleMethodBody(
+                """
+                var target = new global::B();
+                target.Value = BuildValue();
+                return target;
+                """
+            );
+    }
+
+    [Fact]
+    public void ReturnMaybeNullMethodToNonNullableTargetShouldDiagnostic()
+    {
+        var source = TestSourceBuilder.MapperWithBodyAndTypes(
+            """
+            [MapValue("Value", Use = nameof(BuildValue))] partial B Map(A source);
+            [return: System.Diagnostics.CodeAnalysis.MaybeNull]
+            string BuildValue() => "hello";
+            """,
+            "class A;",
+            "class B { public string Value { get; set; } }"
+        );
+
+        TestHelper
+            .GenerateMapper(source, TestHelperOptions.AllowDiagnostics)
+            .Should()
+            .HaveDiagnostic(
+                DiagnosticDescriptors.MapValueMethodTypeMismatch,
+                "Cannot assign method return type string of BuildValue() to B.Value of type string"
+            )
+            .HaveAssertedAllDiagnostics();
+    }
+
+    [Fact]
+    public void ReturnMaybeNullMethodToMaybeNullTargetProperty()
+    {
+        var source = TestSourceBuilder.MapperWithBodyAndTypes(
+            """
+            [MapValue("Value", Use = nameof(BuildValue))] partial B Map(A source);
+            [return: System.Diagnostics.CodeAnalysis.MaybeNull]
+            string BuildValue() => null!;
+            """,
+            "class A;",
+            """
+            class B
+            {
+                [System.Diagnostics.CodeAnalysis.MaybeNull]
+                public string Value { get; set; } = default!;
+            }
+            """
+        );
+
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveSingleMethodBody(
+                """
+                var target = new global::B();
+                target.Value = BuildValue();
+                return target;
+                """
+            );
     }
 }

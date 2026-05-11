@@ -513,4 +513,264 @@ public class UseStaticMapperTest
                 """
             );
     }
+
+    [Fact]
+    public void AssemblyLevelUseStaticGenericMapperStaticMethod()
+    {
+        var source = TestSourceBuilder.CSharp(
+            """
+            using Riok.Mapperly.Abstractions;
+            [assembly: UseStaticMapper<OtherMapper>]
+
+            record A(AExternal Value);
+            record B(BExternal Value);
+            record AExternal();
+            record BExternal();
+
+            class OtherMapper { public static BExternal ToBExternal(AExternal source) => new BExternal(); }
+
+            [Mapper]
+            public partial class Mapper
+            {
+                partial B Map(A source);
+            }
+            """
+        );
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveMapMethodBody(
+                """
+                var target = new global::B(global::OtherMapper.ToBExternal(source.Value));
+                return target;
+                """
+            );
+    }
+
+    [Fact]
+    public void AssemblyLevelUseStaticMapperStaticMethod()
+    {
+        var source = TestSourceBuilder.CSharp(
+            """
+            using Riok.Mapperly.Abstractions;
+            [assembly: UseStaticMapper(typeof(OtherMapper))]
+
+            record A(AExternal Value);
+            record B(BExternal Value);
+            record AExternal();
+            record BExternal();
+
+            class OtherMapper { public static BExternal ToBExternal(AExternal source) => new BExternal(); }
+
+            [Mapper]
+            public partial class Mapper
+            {
+                partial B Map(A source);
+            }
+            """
+        );
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveMapMethodBody(
+                """
+                var target = new global::B(global::OtherMapper.ToBExternal(source.Value));
+                return target;
+                """
+            );
+    }
+
+    [Fact]
+    public void CombineAssemblyLevelUseStaticMappers()
+    {
+        var source = TestSourceBuilder.CSharp(
+            """
+            using Riok.Mapperly.Abstractions;
+            [assembly: UseStaticMapper(typeof(OtherMapper))]
+            [assembly: UseStaticMapper<AnotherMapper>]
+
+            record A(int Value1, long Value2);
+            record B(string Value1, string Value2);
+
+            class OtherMapper { public static string IntToString(int source) => source.ToString(); }
+            class AnotherMapper { public static string LongToString(long source) => source.ToString(); }
+
+            [Mapper]
+            public partial class Mapper
+            {
+                partial B Map(A source);
+            }
+            """
+        );
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveMapMethodBody(
+                """
+                var target = new global::B(
+                    global::OtherMapper.IntToString(source.Value1),
+                    global::AnotherMapper.LongToString(source.Value2)
+                );
+                return target;
+                """
+            );
+    }
+
+    [Fact]
+    public void SelfReferencingUseStaticMapperStaticMethodNotCauseDiagnostic()
+    {
+        var source = TestSourceBuilder.CSharp(
+            """
+            using Riok.Mapperly.Abstractions;
+            [assembly: UseStaticMapper(typeof(Mapper))]
+
+            record A(AExternal Value);
+            record B(BExternal Value);
+            record AExternal();
+            record BExternal();
+
+            [Mapper]
+            public partial class Mapper
+            {
+                partial B Map(A source);
+
+                public static BExternal ToBExternal(AExternal source) => new BExternal();
+            }
+            """
+        );
+        TestHelper
+            .GenerateMapper(source)
+            .Should()
+            .HaveMapMethodBody(
+                """
+                var target = new global::B(ToBExternal(source.Value));
+                return target;
+                """
+            );
+    }
+
+    [Fact]
+    public Task ProjectionWithUseStaticMapperShouldInlineGenerator()
+    {
+        var source = TestSourceBuilder.CSharp(
+            """
+            using Riok.Mapperly.Abstractions;
+            using System.Linq;
+
+            public class Maker
+            {
+                public int Id { get; set; }
+                public string Name { get; set; }
+            }
+
+            public class Car
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = null!;
+                public Maker Make { get; set; } = null!;
+            }
+
+            public record MakerDto
+            {
+                public int Id { get; init; }
+                public string MakerName { get; init; } = null!;
+            }
+
+            public record CarDto
+            {
+                public int Id { get; init; }
+                public string CarName { get; init; } = null!;
+                public MakerDto Maker { get; init; } = null!;
+            }
+
+            [Mapper]
+            public static partial class OtherMapper
+            {
+                public static partial IQueryable<MakerDto> ProjectToMakerDto(this IQueryable<Maker> query);
+
+                [MapperRequiredMapping(RequiredMappingStrategy.Target)]
+                [MapProperty(nameof(Maker.Name), nameof(MakerDto.MakerName))]
+                public static partial MakerDto ToMakerDto(this Maker maker);
+            }
+
+            [Mapper]
+            [UseStaticMapper(typeof(OtherMapper))]
+            public static partial class Mapper
+            {
+                public static partial IQueryable<CarDto> ProjectToCarDto(this IQueryable<Car> query);
+
+                [MapperRequiredMapping(RequiredMappingStrategy.Target)]
+                [MapProperty(nameof(Car.Name), nameof(CarDto.CarName))]
+                [MapProperty(nameof(Car.Make), nameof(CarDto.Maker))]
+                public static partial CarDto MapToCarDto(this Car car);
+            }
+            """
+        );
+
+        return TestHelper.VerifyGenerator(source);
+    }
+
+    [Fact]
+    public void ProjectionWithUseStaticMapperShouldReportDiagnosticWhenInliningFails()
+    {
+        var source = TestSourceBuilder.CSharp(
+            """
+            using Riok.Mapperly.Abstractions;
+            using System.Linq;
+
+            public class Maker
+            {
+                public int Id { get; set; }
+                public string Name { get; set; }
+            }
+
+            public class Car
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = null!;
+                public Maker Make { get; set; } = null!;
+            }
+
+            public record MakerDto
+            {
+                public int Id { get; init; }
+                public string MakerName { get; init; } = null!;
+            }
+
+            public record CarDto
+            {
+                public int Id { get; init; }
+                public string CarName { get; init; } = null!;
+                public MakerDto Maker { get; init; } = null!;
+            }
+
+            [Mapper]
+            public static partial class OtherMapper
+            {
+                public static MakerDto ToMakerDto(Maker maker)
+                {
+                    var id = maker.Id;
+                    return new MakerDto { Id = id, MakerName = maker.Name };
+                }
+            }
+
+            [Mapper]
+            [UseStaticMapper(typeof(OtherMapper))]
+            public static partial class Mapper
+            {
+                public static partial IQueryable<CarDto> ProjectToCarDto(this IQueryable<Car> query);
+
+                [MapperRequiredMapping(RequiredMappingStrategy.Target)]
+                [MapProperty(nameof(Car.Name), nameof(CarDto.CarName))]
+                [MapProperty(nameof(Car.Make), nameof(CarDto.Maker))]
+                public static partial CarDto MapToCarDto(this Car car);
+            }
+            """
+        );
+
+        TestHelper
+            .GenerateMapper(source, TestHelperOptions.AllowDiagnostics)
+            .Should()
+            .HaveDiagnostic(DiagnosticDescriptors.QueryableProjectionMappingCannotInline);
+    }
 }

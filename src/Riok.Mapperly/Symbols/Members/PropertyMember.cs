@@ -1,10 +1,8 @@
 using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Riok.Mapperly.Abstractions;
 using Riok.Mapperly.Descriptors;
 using Riok.Mapperly.Descriptors.UnsafeAccess;
-using Riok.Mapperly.Helpers;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using static Riok.Mapperly.Emit.Syntax.SyntaxFactoryHelper;
 
@@ -21,7 +19,7 @@ public class PropertyMember(IPropertySymbol symbol, SymbolAccessor symbolAccesso
 
     public INamedTypeSymbol? ContainingType { get; } = symbol.ContainingType;
 
-    public bool IsNullable => Type.IsNullable();
+    public bool IsNullable => symbolAccessor.IsNullable(Symbol);
 
     public bool CanGet => !Symbol.IsWriteOnly && (Symbol.GetMethod == null || symbolAccessor.IsMemberAccessible(Symbol.GetMethod));
 
@@ -35,17 +33,13 @@ public class PropertyMember(IPropertySymbol symbol, SymbolAccessor symbolAccesso
 
     public bool IsInitOnly => Symbol.SetMethod?.IsInitOnly == true;
 
-    public bool IsRequired
-#if ROSLYN4_4_OR_GREATER
-        => Symbol.IsRequired;
-#else
-        => false;
-#endif
+    public bool IsRequired => Symbol.IsRequired;
 
     public bool IsObsolete => symbolAccessor.HasAttribute<ObsoleteAttribute>(Symbol);
-    public bool IsIgnored => symbolAccessor.HasAttribute<MapperIgnoreAttribute>(Symbol);
 
     public bool SupportsCoalesceAssignment => CanSetDirectly;
+
+    public bool IsIgnored(MappingBuilderContext ctx) => MapperIgnoreHelper.CheckIgnored(Symbol, Name, ctx);
 
     public IMemberGetter BuildGetter(UnsafeAccessorContext ctx)
     {
@@ -69,7 +63,12 @@ public class PropertyMember(IPropertySymbol symbol, SymbolAccessor symbolAccesso
         return ctx.GetOrBuildPropertySetter(this);
     }
 
-    public ExpressionSyntax BuildAssignment(ExpressionSyntax? baseAccess, ExpressionSyntax valueToAssign, bool coalesceAssignment = false)
+    public ExpressionSyntax BuildAssignment(
+        ExpressionSyntax? baseAccess,
+        ExpressionSyntax valueToAssign,
+        INamedTypeSymbol? containingType = null,
+        bool coalesceAssignment = false
+    )
     {
         Debug.Assert(CanSetDirectly);
         ExpressionSyntax targetMember = baseAccess == null ? IdentifierName(Name) : MemberAccess(baseAccess, Name);
@@ -77,7 +76,7 @@ public class PropertyMember(IPropertySymbol symbol, SymbolAccessor symbolAccesso
         return Assignment(targetMember, valueToAssign, coalesceAssignment);
     }
 
-    public ExpressionSyntax BuildAccess(ExpressionSyntax? baseAccess, bool nullConditional = false)
+    public ExpressionSyntax BuildAccess(ExpressionSyntax? baseAccess, INamedTypeSymbol? containingType = null, bool nullConditional = false)
     {
         Debug.Assert(CanGetDirectly);
         if (baseAccess == null)

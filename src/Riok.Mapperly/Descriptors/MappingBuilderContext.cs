@@ -44,6 +44,7 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
         Location? diagnosticLocation,
         TypeMappingKey mappingKey,
         bool ignoreDerivedTypes,
+        bool forceRootParameterScope = false,
         bool supportsDeepCloning = true
     )
         : this(
@@ -56,11 +57,25 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
             supportsDeepCloning: supportsDeepCloning
         )
     {
+        // Build a fresh root scope when the mapping is embedded in the parent method body
+        // (EmbeddedMapping option), so additional parameters are exposed and unused-parameter
+        // diagnostics are reported at this level rather than leaking into unrelated nested mappings.
+        // Otherwise, wrap the parent scope in a child (delegates MarkUsed upward).
+        // Only the root scope reports unused parameters in diagnostics.
+        ParameterScope =
+            ctx.ParameterScope.IsEmpty || forceRootParameterScope
+                ? BuildParameterScope(userMapping)
+                : new ParameterScope(ctx.ParameterScope);
         if (ignoreDerivedTypes)
         {
             Configuration = Configuration with { DerivedTypes = [] };
         }
     }
+
+    private static ParameterScope BuildParameterScope(IUserMapping? userMapping) =>
+        userMapping is IParameterizedMapping { AdditionalSourceParameters.Count: > 0 } pm
+            ? new ParameterScope(pm.AdditionalSourceParameters)
+            : ParameterScope.Empty;
 
     public TypeMappingKey MappingKey { get; }
 
@@ -83,10 +98,15 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
     /// </summary>
     public virtual bool IsExpression => false;
 
+    public ParameterScope ParameterScope { get; } = ParameterScope.Empty;
+
     public InstanceConstructorFactory InstanceConstructors { get; }
 
     /// <inheritdoc cref="MappingBuilders.MappingBuilder.NewInstanceMappings"/>
     public IReadOnlyDictionary<TypeMappingKey, INewInstanceMapping> NewInstanceMappings => MappingBuilder.NewInstanceMappings;
+
+    /// <inheritdoc cref="MappingBuilders.MappingBuilder.ExistingTargetUserMappings"/>
+    public IEnumerable<IExistingTargetUserMapping> ExistingTargetUserMappings => MappingBuilder.ExistingTargetUserMappings;
 
     /// <summary>
     /// Tries to find an existing mapping with the provided name.
@@ -120,7 +140,8 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
     /// </summary>
     /// <param name="mappingKey">The mapping key.</param>
     /// <returns>The found mapping, or <c>null</c> if none is found.</returns>
-    public virtual INewInstanceMapping? FindMapping(TypeMappingKey mappingKey) => MappingBuilder.Find(mappingKey);
+    public virtual INewInstanceMapping? FindMapping(TypeMappingKey mappingKey, ParameterScope? scope = null) =>
+        MappingBuilder.Find(mappingKey, scope);
 
     /// <summary>
     /// Tries to find an existing mapping for the provided types.
@@ -165,7 +186,7 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
         Location? diagnosticLocation = null
     )
     {
-        return FindMapping(mappingKey)
+        return FindMapping(mappingKey, ParameterScope)
             ?? FindMapping(mappingKey.TargetNonNullable())
             ?? BuildMapping(mappingKey, options, diagnosticLocation);
     }
@@ -187,7 +208,7 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
         Location? diagnosticLocation = null
     )
     {
-        if (FindMapping(key) is INewInstanceUserMapping mapping)
+        if (FindMapping(key, ParameterScope) is INewInstanceUserMapping mapping)
             return mapping;
 
         // if a user mapping is referenced
@@ -326,7 +347,7 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
     }
 
     public void ReportDiagnostic(DiagnosticDescriptor descriptor, params object[] messageArgs) =>
-        base.ReportDiagnostic(descriptor, null, messageArgs);
+        base.ReportDiagnostic(descriptor, (ISymbol?)null, messageArgs);
 
     public NullFallbackValue GetNullFallbackValue(ITypeSymbol? targetType = null) =>
         GetNullFallbackValue(targetType ?? Target, Configuration.Mapper.ThrowOnMappingNullMismatch);
@@ -370,7 +391,14 @@ public class MappingBuilderContext : SimpleMappingBuilderContext
         Location? diagnosticLocation = null
     )
     {
-        return new(this, userMapping, diagnosticLocation, mappingKey, options.HasFlag(MappingBuildingOptions.IgnoreDerivedTypes));
+        return new(
+            this,
+            userMapping,
+            diagnosticLocation,
+            mappingKey,
+            options.HasFlag(MappingBuildingOptions.IgnoreDerivedTypes),
+            forceRootParameterScope: options.HasFlag(MappingBuildingOptions.EmbeddedMapping)
+        );
     }
 
     protected virtual INewInstanceMapping? BuildMapping(

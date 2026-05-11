@@ -6,7 +6,7 @@ using Riok.Mapperly.IntegrationTests.Models;
 
 namespace Riok.Mapperly.IntegrationTests.Mapper
 {
-    [Mapper(EnumMappingStrategy = EnumMappingStrategy.ByValue)]
+    [Mapper(EnumMappingStrategy = EnumMappingStrategy.ByValue, EnabledConversions = MappingConversionType.All)]
     public static partial class StaticTestMapper
     {
         [UserMapping(Default = true)]
@@ -101,6 +101,12 @@ namespace Riok.Mapperly.IntegrationTests.Mapper
         public static partial object? MapNullableWithRuntimeTargetType(object? source, Type targetType);
 
         public static partial TTarget MapGeneric<TSource, TTarget>(TSource source);
+
+        public static partial void MapExistingGeneric<TSource, TTarget>(TSource source, TTarget target);
+
+        private static partial void MapExistingObjectTypeA(ExistingObjectTypeA source, ExistingObjectTypeA target);
+
+        private static partial void MapExistingObjectTypeB(ExistingObjectTypeB source, ExistingObjectTypeB target);
 
 #if NET7_0_OR_GREATER
         [MapDerivedType<ExistingObjectTypeA, ExistingObjectTypeA>]

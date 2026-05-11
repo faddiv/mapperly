@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
 using Microsoft.CodeAnalysis;
 using Riok.Mapperly.Abstractions;
 using Riok.Mapperly.Configuration;
@@ -82,7 +83,15 @@ public static class UserMethodMappingExtractor
         }
 
         var methods = ctx.SymbolAccessor.GetAllMethods(type).Where(e => ctx.AttributeAccessor.IsMappingNameEqualTo(e, target.Name));
-        return BuildUserImplementedMappings(ctx, methods, target.GetTargetName(ctx), type.IsStatic, isExternal: true, isDefault: false);
+        return BuildUserImplementedMappings(
+            ctx,
+            methods,
+            target.GetTargetName(ctx),
+            type.IsStatic,
+            isExternal: true,
+            isDefault: false,
+            requireAttribute: false
+        );
     }
 
     internal static IEnumerable<IUserMapping> ExtractUserImplementedMappings(
@@ -93,6 +102,12 @@ public static class UserMethodMappingExtractor
         bool isExternal
     )
     {
+        // Ignore the mapper type itself.
+        if (SymbolEqualityComparer.Default.Equals(type, ctx.MapperDeclaration.Symbol))
+        {
+            return [];
+        }
+
         var methods = ctx
             .SymbolAccessor.GetAllMethods(type)
             .Concat(type.AllInterfaces.SelectMany(ctx.SymbolAccessor.GetAllMethods))
@@ -106,12 +121,13 @@ public static class UserMethodMappingExtractor
         string? receiver,
         bool isStatic,
         bool isExternal,
-        bool? isDefault = null
+        bool? isDefault = null,
+        bool requireAttribute = true
     )
     {
         foreach (var method in methods)
         {
-            if (!IsMappingMethodCandidate(ctx, method))
+            if (!IsMappingMethodCandidate(ctx, method, requireAttribute))
                 continue;
 
             // Partial method declarations are allowed for base classes,
@@ -151,9 +167,9 @@ public static class UserMethodMappingExtractor
     )
     {
         var userMappingConfig = GetUserMappingConfig(ctx, method, out var hasAttribute);
-        var valid = !method.IsGenericMethod && (allowPartial || !method.IsPartialDefinition) && (!isStatic || method.IsStatic);
+        var valid = (allowPartial || !method.IsPartialDefinition) && (!isStatic || method.IsStatic);
 
-        if (!valid || !UserMappingMethodParameterExtractor.BuildParameters(ctx, method, false, out var parameters))
+        if (!valid || !UserMappingMethodParameterExtractor.BuildParameters(ctx, method, out var parameters))
         {
             if (!hasAttribute)
                 return null;
@@ -166,6 +182,20 @@ public static class UserMethodMappingExtractor
         if (userMappingConfig.Ignore == true)
             return null;
 
+        // Generic user-implemented methods are stored as templates
+        // that are matched against concrete type pairs during mapping resolution.
+        if (method.IsGenericMethod)
+        {
+            return BuildGenericUserImplementedMapping(
+                ctx,
+                method,
+                receiver,
+                parameters,
+                isExternal,
+                userMappingConfig.Default ?? isDefault
+            );
+        }
+
         if (method.ReturnsVoid)
         {
             return new UserImplementedExistingTargetMethodMapping(
@@ -174,6 +204,8 @@ public static class UserMethodMappingExtractor
                 userMappingConfig.Default ?? isDefault,
                 parameters.Source,
                 parameters.Target!.Value,
+                parameters.Source.Type,
+                parameters.Target!.Value.Type,
                 parameters.ReferenceHandler,
                 isExternal
             );
@@ -184,6 +216,43 @@ public static class UserMethodMappingExtractor
             receiver,
             method,
             userMappingConfig.Default ?? isDefault,
+            parameters.Source,
+            parameters.Source.Type,
+            targetType,
+            parameters.ReferenceHandler,
+            isExternal,
+            targetTypeNullability
+        );
+    }
+
+    private static IUserMapping? BuildGenericUserImplementedMapping(
+        SimpleMappingBuilderContext ctx,
+        IMethodSymbol method,
+        string? receiver,
+        MappingMethodParameters parameters,
+        bool isExternal,
+        bool? isDefault
+    )
+    {
+        if (method.ReturnsVoid)
+        {
+            if (parameters.Target is not { } targetParam)
+                return null;
+
+            return new GenericUserImplementedExistingTargetMethodMapping(
+                receiver,
+                method,
+                parameters.Source,
+                targetParam,
+                parameters.ReferenceHandler,
+                isExternal
+            );
+        }
+
+        var (targetType, targetTypeNullability) = BuildTargetType(ctx, method, parameters.Source.Name);
+        return new GenericUserImplementedNewInstanceMethodMapping(
+            receiver,
+            method,
             parameters.Source,
             targetType,
             parameters.ReferenceHandler,
@@ -227,23 +296,17 @@ public static class UserMethodMappingExtractor
         if (TryBuildRuntimeTargetTypeMapping(ctx, methodSymbol) is { } userMapping)
             return userMapping;
 
-        if (!UserMappingMethodParameterExtractor.BuildParameters(ctx, methodSymbol, true, out var parameters))
+        if (TryBuildExpressionMapping(ctx, methodSymbol) is { } expressionMapping)
+            return expressionMapping;
+
+        if (!UserMappingMethodParameterExtractor.BuildParameters(ctx, methodSymbol, out var parameters))
         {
             ctx.ReportDiagnostic(DiagnosticDescriptors.UnsupportedMappingMethodSignature, methodSymbol, methodSymbol.Name);
             return null;
         }
 
         if (methodSymbol.IsGenericMethod)
-        {
-            return new UserDefinedNewInstanceGenericTypeMapping(
-                methodSymbol,
-                parameters,
-                ctx.SymbolAccessor.UpgradeNullable(methodSymbol.ReturnType),
-                ctx.Configuration.Mapper.UseReferenceHandling,
-                GetTypeSwitchNullArm(methodSymbol, parameters),
-                ctx.Compilation.ObjectType.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
-            );
-        }
+            return BuildGenericTypeMapping(ctx, methodSymbol, parameters);
 
         if (parameters.Target.HasValue)
         {
@@ -283,6 +346,33 @@ public static class UserMethodMappingExtractor
         return mapping;
     }
 
+    private static IUserMapping BuildGenericTypeMapping(
+        SimpleMappingBuilderContext ctx,
+        IMethodSymbol methodSymbol,
+        MappingMethodParameters parameters
+    )
+    {
+        if (parameters.Target.HasValue)
+        {
+            return new UserDefinedExistingTargetGenericTypeMapping(
+                methodSymbol,
+                parameters.Source,
+                parameters.Target.Value,
+                parameters.ReferenceHandler,
+                ctx.Configuration.Mapper.UseReferenceHandling
+            );
+        }
+
+        return new UserDefinedNewInstanceGenericTypeMapping(
+            methodSymbol,
+            parameters,
+            ctx.SymbolAccessor.UpgradeNullable(methodSymbol.ReturnType),
+            ctx.Configuration.Mapper.UseReferenceHandling,
+            GetTypeSwitchNullArm(methodSymbol, parameters),
+            ctx.Compilation.ObjectType.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+        );
+    }
+
     private static UserDefinedNewInstanceRuntimeTargetTypeParameterMapping? TryBuildRuntimeTargetTypeMapping(
         SimpleMappingBuilderContext ctx,
         IMethodSymbol methodSymbol
@@ -306,6 +396,41 @@ public static class UserMethodMappingExtractor
             GetTypeSwitchNullArm(methodSymbol, runtimeTargetTypeParams),
             ctx.Compilation.ObjectType.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
         );
+    }
+
+    private static UserDefinedExpressionMethodMapping? TryBuildExpressionMapping(
+        SimpleMappingBuilderContext ctx,
+        IMethodSymbol methodSymbol
+    )
+    {
+        if (methodSymbol.IsGenericMethod)
+            return null;
+
+        // Only handle parameterless methods - Expression<Func<TSource, TTarget>> mappings
+        // are meant to be used like IQueryable projections where the source type comes from
+        // the Expression's type arguments, not from method parameters
+        if (methodSymbol.Parameters.Length > 0)
+            return null;
+
+        // Check if return type is Expression<Func<TSource, TTarget>>
+        var returnType = methodSymbol.ReturnType;
+        if (!returnType.ExtendsOrImplementsGeneric(ctx.Types.Get(typeof(Expression<>)), out var expressionType))
+            return null;
+
+        // Get the Func<TSource, TTarget> type argument
+        if (expressionType.TypeArguments[0] is not INamedTypeSymbol funcType)
+            return null;
+
+        if (!funcType.ExtendsOrImplementsGeneric(ctx.Types.Get(typeof(Func<,>)), out var funcTypeArgs))
+            return null;
+
+        // Extract source and target types from the Func<TSource, TTarget> type arguments.
+        // Unlike method parameters, type arguments do not go through SymbolAccessor.WrapMethodParameter,
+        // so we need to upgrade nullability explicitly.
+        var sourceType = ctx.SymbolAccessor.UpgradeNullable(funcTypeArgs.TypeArguments[0]);
+        var targetType = ctx.SymbolAccessor.UpgradeNullable(funcTypeArgs.TypeArguments[1]);
+
+        return new UserDefinedExpressionMethodMapping(methodSymbol, sourceType, targetType, ctx.SymbolAccessor.UpgradeNullable(returnType));
     }
 
     private static NullFallbackValue? GetTypeSwitchNullArm(IMethodSymbol method, MappingMethodParameters parameters)

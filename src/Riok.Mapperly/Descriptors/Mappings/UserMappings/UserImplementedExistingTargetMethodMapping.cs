@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Riok.Mapperly.Descriptors.Mappings.ExistingTarget;
 using Riok.Mapperly.Symbols;
@@ -16,9 +17,11 @@ public class UserImplementedExistingTargetMethodMapping(
     bool? isDefault,
     MethodParameter sourceParameter,
     MethodParameter targetParameter,
+    ITypeSymbol sourceType,
+    ITypeSymbol targetType,
     MethodParameter? referenceHandlerParameter,
     bool isExternal
-) : ExistingTargetMapping(method.Parameters[0].Type, targetParameter.Type), IExistingTargetUserMapping
+) : ExistingTargetMapping(sourceType, targetType), IExistingTargetUserMapping, IParameterizedMapping
 {
     public IMethodSymbol Method { get; } = method;
 
@@ -26,8 +29,20 @@ public class UserImplementedExistingTargetMethodMapping(
 
     public bool IsExternal { get; } = isExternal;
 
+    public IReadOnlyCollection<MethodParameter> AdditionalSourceParameters { get; } =
+        method
+            .Parameters.Where(p =>
+                p.Ordinal != sourceParameter.Ordinal
+                && p.Ordinal != targetParameter.Ordinal
+                && (referenceHandlerParameter is null || p.Ordinal != referenceHandlerParameter.Value.Ordinal)
+            )
+            .Select(p => new MethodParameter(p, p.Type))
+            .ToList();
+
     public override IEnumerable<StatementSyntax> Build(TypeMappingBuildContext ctx, ExpressionSyntax target)
     {
+        var methodName = BuildMethodName();
+
         // if the user implemented method is on an interface,
         // we explicitly cast to be able to use the default interface implementation or explicit implementations
         if (Method.ReceiverType?.TypeKind != TypeKind.Interface)
@@ -39,10 +54,13 @@ public class UserImplementedExistingTargetMethodMapping(
                 yield return ctx.SyntaxFactory.DeclareLocalVariable(targetRefVarName, target);
                 yield return ctx.SyntaxFactory.ExpressionStatement(
                     ctx.SyntaxFactory.Invocation(
-                        receiver == null ? IdentifierName(Method.Name) : MemberAccess(receiver, Method.Name),
-                        sourceParameter.WithArgument(ctx.Source),
-                        targetParameter.WithArgument(IdentifierName(targetRefVarName)),
-                        referenceHandlerParameter?.WithArgument(ctx.ReferenceHandler)
+                        GetMethodExpr(),
+                        ctx.BuildArguments(
+                            Method,
+                            sourceParameter,
+                            referenceHandlerParameter,
+                            targetParameter.WithArgument(IdentifierName(targetRefVarName))
+                        )
                     )
                 );
                 yield return ctx.SyntaxFactory.ExpressionStatement(Assignment(target, IdentifierName(targetRefVarName), false));
@@ -52,27 +70,34 @@ public class UserImplementedExistingTargetMethodMapping(
 
             yield return ctx.SyntaxFactory.ExpressionStatement(
                 ctx.SyntaxFactory.Invocation(
-                    receiver == null ? IdentifierName(Method.Name) : MemberAccess(receiver, Method.Name),
-                    sourceParameter.WithArgument(ctx.Source),
-                    targetParameter.WithArgument(target),
-                    referenceHandlerParameter?.WithArgument(ctx.ReferenceHandler)
+                    GetMethodExpr(),
+                    ctx.BuildArguments(Method, sourceParameter, referenceHandlerParameter, targetParameter.WithArgument(target))
                 )
             );
             yield break;
+
+            ExpressionSyntax GetMethodExpr() =>
+                receiver == null
+                    ? methodName
+                    : MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, IdentifierName(receiver), methodName);
         }
 
         var castedThis = CastExpression(
             FullyQualifiedIdentifier(Method.ReceiverType!),
             receiver != null ? IdentifierName(receiver) : ThisExpression()
         );
-        var methodExpr = MemberAccess(ParenthesizedExpression(castedThis), Method.Name);
+        var castedMethodExpr = MemberAccessExpression(
+            SyntaxKind.SimpleMemberAccessExpression,
+            ParenthesizedExpression(castedThis),
+            methodName
+        );
         yield return ctx.SyntaxFactory.ExpressionStatement(
             ctx.SyntaxFactory.Invocation(
-                methodExpr,
-                sourceParameter.WithArgument(ctx.Source),
-                targetParameter.WithArgument(target),
-                referenceHandlerParameter?.WithArgument(ctx.ReferenceHandler)
+                castedMethodExpr,
+                ctx.BuildArguments(Method, sourceParameter, referenceHandlerParameter, targetParameter.WithArgument(target))
             )
         );
     }
+
+    protected virtual SimpleNameSyntax BuildMethodName() => IdentifierName(Method.Name);
 }

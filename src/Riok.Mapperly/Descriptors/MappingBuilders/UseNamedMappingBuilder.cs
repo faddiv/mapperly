@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Riok.Mapperly.Descriptors.Mappings;
 using Riok.Mapperly.Descriptors.Mappings.ExistingTarget;
 using Riok.Mapperly.Diagnostics;
+using Riok.Mapperly.Helpers;
 
 namespace Riok.Mapperly.Descriptors.MappingBuilders;
 
@@ -19,12 +20,18 @@ public static class UseNamedMappingBuilder
             return null;
         }
 
+        if (!ctx.ParameterScope.TryUseParameters(mapping))
+        {
+            ctx.ReportDiagnostic(DiagnosticDescriptors.NamedMappingParametersUnsatisfied, ctx.MappingKey.Configuration.UseNamedMapping);
+            return null;
+        }
+
         var differentSourceType = !SymbolEqualityComparer.IncludeNullability.Equals(ctx.Source, mapping.SourceType);
         var differentTargetType = !SymbolEqualityComparer.IncludeNullability.Equals(ctx.Target, mapping.TargetType);
 
         // use a delegate mapping,
         // otherwise the user-defined method mapping may get built twice
-        // (if it is returned here directly it is re-added to the mappings to be built)
+        // (if it is returned here directly, it is re-added to the mappings to be built)
         if (!differentSourceType && !differentTargetType)
             return new DelegateMapping(mapping.SourceType, mapping.TargetType, mapping);
 
@@ -47,6 +54,12 @@ public static class UseNamedMappingBuilder
         var existingTargetMapping = ctx.FindExistingTargetNamedMapping(useNamedMapping);
         if (existingTargetMapping is null)
             return null;
+
+        if (!ctx.ParameterScope.TryUseParameters(existingTargetMapping))
+        {
+            ctx.ReportDiagnostic(DiagnosticDescriptors.NamedMappingParametersUnsatisfied, useNamedMapping);
+            return null;
+        }
 
         var source = ctx.Source;
         var target = ctx.Target;
@@ -139,8 +152,8 @@ public static class UseNamedMappingBuilder
 
     private static INewInstanceMapping? TryMapSource(MappingBuilderContext ctx, INewInstanceMapping mapping)
     {
-        // only report if there are other differences than nullability
-        if (!SymbolEqualityComparer.Default.Equals(ctx.Source, mapping.SourceType))
+        // report if the source can't be assigned to the mapping source type
+        if (!ctx.Source.ExtendsOrImplements(mapping.SourceType))
         {
             ctx.ReportDiagnostic(
                 DiagnosticDescriptors.ReferencedMappingSourceTypeMismatch,

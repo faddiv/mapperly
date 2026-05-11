@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Riok.Mapperly.Abstractions;
 
 namespace Riok.Mapperly.Tests;
@@ -13,14 +14,29 @@ public static class TestHelper
         trackIncrementalGeneratorSteps: true
     );
 
-    public static Task<VerifyResult> VerifyGenerator(string source, TestHelperOptions? options = null, params object?[] args)
+    public static Task<VerifyResult> VerifyGenerator(
+        string source,
+        TestHelperOptions? options = null,
+        IReadOnlyCollection<TestAssembly>? additionalAssemblies = null,
+        params object?[] testParams
+    )
     {
-        var driver = Generate(source, options);
-        var verify = Verify(driver);
+        options ??= TestHelperOptions.Default;
 
-        if (args.Length != 0)
+        var driver = Generate(source, options, additionalAssemblies);
+        var result = driver.GetRunResult();
+
+        if (options.IgnoredDiagnostics is { Count: > 0 } ignored)
         {
-            verify.UseParameters(args);
+            var ignoredIds = ignored.Select(x => x.Id).ToHashSet();
+            RunResultDiagnosticsPatcher.FilterRunResultDiagnostics(result, ignoredIds);
+        }
+
+        var verify = Verify(result);
+
+        if (testParams.Length != 0)
+        {
+            verify.UseParameters(testParams);
         }
 
         return verify.ToTask();
@@ -92,6 +108,8 @@ public static class TestHelper
         IReadOnlyCollection<TestAssembly>? additionalAssemblies = null
     )
     {
+        options ??= TestHelperOptions.Default;
+
         var compilation = BuildCompilation(source, options);
         if (additionalAssemblies != null)
         {
@@ -100,8 +118,34 @@ public static class TestHelper
 
         var generator = new MapperGenerator();
 
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        var analyzerConfigOptions = BuildAnalyzerConfigOptions(options);
+        var optionsProvider = analyzerConfigOptions.Count > 0 ? new TestAnalyzerConfigOptionsProvider(analyzerConfigOptions) : null;
+
+        var driver = CSharpGeneratorDriver.Create(
+            [generator.AsSourceGenerator()],
+            parseOptions: (CSharpParseOptions)compilation.SyntaxTrees.First().Options,
+            optionsProvider: optionsProvider,
+            driverOptions: _enableIncrementalTrackingDriverOptions
+        );
         return driver.RunGenerators(compilation);
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildAnalyzerConfigOptions(TestHelperOptions options)
+    {
+        var analyzerConfigOptions =
+            options.AnalyzerConfigOptions != null
+                ? new Dictionary<string, string>(options.AnalyzerConfigOptions)
+                : new Dictionary<string, string>();
+
+        if (options.IgnoredDiagnostics == null)
+            return analyzerConfigOptions;
+
+        foreach (var diagnostic in options.IgnoredDiagnostics)
+        {
+            analyzerConfigOptions[$"dotnet_diagnostic.{diagnostic.Id}.severity"] = "none";
+        }
+
+        return analyzerConfigOptions;
     }
 
     private static CSharpCompilation BuildCompilation(
@@ -160,6 +204,22 @@ public static class TestHelper
             {
                 yield return method;
             }
+        }
+    }
+
+    private sealed class TestAnalyzerConfigOptionsProvider(IReadOnlyDictionary<string, string> options) : AnalyzerConfigOptionsProvider
+    {
+        private readonly AnalyzerConfigOptions _options = new TestAnalyzerConfigOptions(options);
+
+        public override AnalyzerConfigOptions GlobalOptions => _options;
+
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => _options;
+
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => _options;
+
+        private sealed class TestAnalyzerConfigOptions(IReadOnlyDictionary<string, string> options) : AnalyzerConfigOptions
+        {
+            public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value) => options.TryGetValue(key, out value);
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.CodeDom.Compiler;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Serialization;
@@ -378,6 +379,12 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor) : IAttributeDa
         }
     }
 
+    public bool IsMapperlyGenerated(IMethodSymbol method)
+    {
+        var generated = AccessFirstOrDefault<GeneratedCodeAttribute>(method);
+        return string.Equals(generated?.Tool, MapperlyGeneratedCodeAttribute.GeneratorToolName, StringComparison.Ordinal);
+    }
+
     private AttributeData? GetAttribute<TAttribute>(ISymbol symbol)
         where TAttribute : Attribute
     {
@@ -587,7 +594,7 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor) : IAttributeDa
             memberRefOperation = memberRefOperation.GetFirstChildOperation<IMemberReferenceOperation>();
 
             // if not fullNameOf only consider the last member path segment
-            if (!fullNameOf && memberPath.Count > 1)
+            if (!fullNameOf)
                 break;
         }
 

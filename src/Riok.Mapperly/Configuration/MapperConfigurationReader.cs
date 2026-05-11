@@ -36,7 +36,7 @@ public class MapperConfigurationReader
         _types = types;
 
         var mapperConfiguration = _dataAccessor.ReadMapperAttribute(mapperSymbol);
-        var mapper = MapperConfigurationMerger.Merge(mapperConfiguration, defaultMapperConfiguration);
+        var mapper = MapperConfigurationMerger.MergeToAttribute(mapperConfiguration, defaultMapperConfiguration);
 
         MapperConfiguration = new MappingConfiguration(
             mapper,
@@ -53,6 +53,7 @@ public class MapperConfigurationReader
             new MembersMappingConfiguration([], [], [], [], [], mapper.IgnoreObsoleteMembersStrategy, mapper.RequiredMappingStrategy),
             [],
             mapper.UseDeepCloning,
+            mapper.StackCloningStrategy,
             supportedFeatures
         );
     }
@@ -87,6 +88,7 @@ public class MapperConfigurationReader
             membersConfig,
             derivedTypesConfig,
             supportsDeepCloning && MapperConfiguration.Mapper.UseDeepCloning,
+            MapperConfiguration.StackCloningStrategy,
             MapperConfiguration.SupportedFeatures
         );
 
@@ -250,6 +252,9 @@ public class MapperConfigurationReader
             return MapperConfiguration.Members;
         }
 
+        ReportMissingJustificationDiagnostics(ignoreSourceMemberAttributes, static x => x.Value);
+        ReportMissingJustificationDiagnostics(ignoreTargetMemberAttributes, static x => x.Value);
+
         foreach (var invalidMemberConfig in memberValueConfigurations.Where(x => !x.IsValid))
         {
             _diagnostics.ReportDiagnostic(DiagnosticDescriptors.InvalidMapValueAttributeUsage, invalidMemberConfig.Location);
@@ -282,6 +287,9 @@ public class MapperConfigurationReader
         var ignoredTargets = _dataAccessor.ReadMapperIgnoreTargetValueAttribute(configRef.Method).Select(x => x.Value).ToList();
         var requiredMapping = _dataAccessor.ReadMapperRequiredMappingAttribute(configRef.Method)?.RequiredMappingStrategy;
 
+        ReportMissingJustificationDiagnostics(ignoredSourceValueConfigurations, static x => x.Value.Name);
+        ReportMissingJustificationDiagnostics(ignoredTargetValueConfigurations, static x => x.Value.Name);
+
         // ignore the required mapping as the same attribute is used for other mapping types
         // e.g. object to object
         var hasEnumConfigs = configData != null || explicitMappings.Count > 0 || ignoredSources.Count > 0 || ignoredTargets.Count > 0;
@@ -301,5 +309,24 @@ public class MapperConfigurationReader
             requiredMapping ?? MapperConfiguration.Enum.RequiredMappingStrategy,
             configData?.NamingStrategy ?? MapperConfiguration.Enum.NamingStrategy
         );
+    }
+
+    private void ReportMissingJustificationDiagnostics<TConfiguration>(
+        IEnumerable<TConfiguration> ignoreConfigurations,
+        Func<TConfiguration, string?> ignoredNameAccessor
+    )
+        where TConfiguration : MapperIgnoreConfigurationBase
+    {
+        foreach (var ignoreConfiguration in ignoreConfigurations)
+        {
+            if (!string.IsNullOrWhiteSpace(ignoreConfiguration.Justification))
+                continue;
+
+            var ignoredName = ignoredNameAccessor(ignoreConfiguration);
+            if (ignoredName == null)
+                continue;
+
+            _diagnostics.ReportDiagnostic(DiagnosticDescriptors.IgnoreMissingJustification, ignoreConfiguration.Location, ignoredName);
+        }
     }
 }

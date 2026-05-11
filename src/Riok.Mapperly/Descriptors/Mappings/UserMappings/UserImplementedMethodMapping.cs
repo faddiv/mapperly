@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Riok.Mapperly.Helpers;
 using Riok.Mapperly.Symbols;
@@ -15,11 +16,12 @@ public class UserImplementedMethodMapping(
     IMethodSymbol method,
     bool? isDefault,
     MethodParameter sourceParameter,
+    ITypeSymbol sourceType,
     ITypeSymbol targetType,
     MethodParameter? referenceHandlerParameter,
     bool isExternal,
     UserImplementedMethodMapping.TargetNullability targetNullability
-) : NewInstanceMapping(sourceParameter.Type, targetType), INewInstanceUserMapping
+) : NewInstanceMapping(sourceType, targetType), INewInstanceUserMapping, IParameterizedMapping
 {
     public enum TargetNullability
     {
@@ -33,6 +35,15 @@ public class UserImplementedMethodMapping(
     public bool? Default { get; } = isDefault;
 
     public bool IsExternal { get; } = isExternal;
+
+    public IReadOnlyCollection<MethodParameter> AdditionalSourceParameters { get; } =
+        method
+            .Parameters.Where(p =>
+                p.Ordinal != sourceParameter.Ordinal
+                && (referenceHandlerParameter is null || p.Ordinal != referenceHandlerParameter.Value.Ordinal)
+            )
+            .Select(p => new MethodParameter(p, p.Type))
+            .ToList();
 
     public override IEnumerable<TypeMappingKey> BuildAdditionalMappingKeys(TypeMappingConfiguration config)
     {
@@ -52,26 +63,30 @@ public class UserImplementedMethodMapping(
 
     public override ExpressionSyntax Build(TypeMappingBuildContext ctx)
     {
+        var methodName = BuildMethodName();
+
         // if the user implemented method is on an interface,
         // we explicitly cast to be able to use the default interface implementation or explicit implementations
         if (Method.ReceiverType?.TypeKind != TypeKind.Interface)
         {
-            return ctx.SyntaxFactory.Invocation(
-                receiver == null ? IdentifierName(Method.Name) : MemberAccess(receiver, Method.Name),
-                sourceParameter.WithArgument(ctx.Source),
-                referenceHandlerParameter?.WithArgument(ctx.ReferenceHandler)
-            );
+            ExpressionSyntax methodExpr =
+                receiver == null
+                    ? methodName
+                    : MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, IdentifierName(receiver), methodName);
+            return ctx.SyntaxFactory.Invocation(methodExpr, ctx.BuildArguments(Method, sourceParameter, referenceHandlerParameter));
         }
 
         var castedReceiver = CastExpression(
             FullyQualifiedIdentifier(Method.ReceiverType!),
             receiver == null ? ThisExpression() : IdentifierName(receiver)
         );
-        var methodExpr = MemberAccess(ParenthesizedExpression(castedReceiver), Method.Name);
-        return ctx.SyntaxFactory.Invocation(
-            methodExpr,
-            sourceParameter.WithArgument(ctx.Source),
-            referenceHandlerParameter?.WithArgument(ctx.ReferenceHandler)
+        var castedMethodExpr = MemberAccessExpression(
+            SyntaxKind.SimpleMemberAccessExpression,
+            ParenthesizedExpression(castedReceiver),
+            methodName
         );
+        return ctx.SyntaxFactory.Invocation(castedMethodExpr, ctx.BuildArguments(Method, sourceParameter, referenceHandlerParameter));
     }
+
+    protected virtual SimpleNameSyntax BuildMethodName() => IdentifierName(Method.Name);
 }

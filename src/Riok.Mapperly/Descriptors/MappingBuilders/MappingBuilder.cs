@@ -1,4 +1,5 @@
 using Riok.Mapperly.Descriptors.Mappings;
+using Riok.Mapperly.Descriptors.Mappings.UserMappings;
 using Riok.Mapperly.Symbols;
 
 namespace Riok.Mapperly.Descriptors.MappingBuilders;
@@ -12,6 +13,7 @@ public class MappingBuilder(MappingCollection mappings, MapperDeclaration mapper
     private static readonly IReadOnlyCollection<BuildMapping> _builders =
     [
         UseNamedMappingBuilder.TryBuildMapping,
+        CtorMappingBuilder.TryBuildNullableMapping,
         NullableMappingBuilder.TryBuildMapping,
         DerivedTypeMappingBuilder.TryBuildMapping,
         ToObjectMappingBuilder.TryBuildMapping,
@@ -37,7 +39,11 @@ public class MappingBuilder(MappingCollection mappings, MapperDeclaration mapper
     /// <inheritdoc cref="MappingCollection.NewInstanceMappings"/>
     public IReadOnlyDictionary<TypeMappingKey, INewInstanceMapping> NewInstanceMappings => mappings.NewInstanceMappings;
 
-    public INewInstanceMapping? Find(TypeMappingKey mapping) => mappings.FindNewInstanceMapping(mapping);
+    /// <inheritdoc cref="MappingCollection.ExistingTargetUserMappings"/>
+    public IEnumerable<IExistingTargetUserMapping> ExistingTargetUserMappings => mappings.ExistingTargetUserMappings;
+
+    public INewInstanceMapping? Find(TypeMappingKey mapping, ParameterScope? scope = null) =>
+        mappings.FindNewInstanceMapping(mapping, scope);
 
     public INewInstanceMapping? FindOrResolveNamed(SimpleMappingBuilderContext ctx, string name, out bool ambiguousName)
     {
