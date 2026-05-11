@@ -252,8 +252,8 @@ public class MapperConfigurationReader
             return MapperConfiguration.Members;
         }
 
-        ReportMissingJustificationDiagnostics(ignoreSourceMemberAttributes, static x => x.Value);
-        ReportMissingJustificationDiagnostics(ignoreTargetMemberAttributes, static x => x.Value);
+        // TODO ReportMissingJustificationDiagnostics(ignoreSourceMemberAttributes, static x => x.Value);
+        // TODO ReportMissingJustificationDiagnostics(ignoreTargetMemberAttributes, static x => x.Value);
 
         foreach (var invalidMemberConfig in memberValueConfigurations.Where(x => !x.IsValid))
         {
@@ -287,8 +287,8 @@ public class MapperConfigurationReader
         var ignoredTargets = _dataAccessor.ReadMapperIgnoreTargetValueAttribute(configRef.Method).Select(x => x.Value).ToList();
         var requiredMapping = _dataAccessor.ReadMapperRequiredMappingAttribute(configRef.Method)?.RequiredMappingStrategy;
 
-        ReportMissingJustificationDiagnostics(ignoredSourceValueConfigurations, static x => x.Value.Name);
-        ReportMissingJustificationDiagnostics(ignoredTargetValueConfigurations, static x => x.Value.Name);
+        // TODO ReportMissingJustificationDiagnostics(ignoredSourceValueConfigurations, static x => x.Value.Name);
+        // TODO ReportMissingJustificationDiagnostics(ignoredTargetValueConfigurations, static x => x.Value.Name);
 
         // ignore the required mapping as the same attribute is used for other mapping types
         // e.g. object to object

@@ -339,11 +339,11 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor) : IAttributeDa
     {
         foreach (var attrData in GetAttributes<UseStaticMapperAttribute>(symbol))
         {
-            var type = GetTypeSymbolFromValue(attrData, "mapperType");
-            if (type is null)
+            var attr = ReadGenericUseStaticMapperAttributes(attrData);
+            if (attr is null)
                 continue;
 
-            yield return new UseStaticMapperConfiguration(type);
+            yield return attr;
         }
     }
 
@@ -351,8 +351,26 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor) : IAttributeDa
     {
         foreach (var attrData in GetAttributes<UseStaticMapperAttribute<object>>(symbol))
         {
+            var attr = ReadGenericUseStaticMapperAttributes(attrData);
+            if (attr is null)
+                continue;
+
+            yield return attr;
+        }
+    }
+
+    public static UseStaticMapperConfiguration? ReadGenericUseStaticMapperAttributes(AttributeData attrData)
+    {
+        if (attrData.AttributeClass?.TypeArguments.Length > 0)
+        {
             var type = GetTypeSymbolFromGenericArgument(attrData, 0);
-            yield return new UseStaticMapperConfiguration(type);
+
+            return type is INamedTypeSymbol namedTypeSymbol ? new UseStaticMapperConfiguration(namedTypeSymbol) : null;
+        }
+        else
+        {
+            var type = GetTypeSymbolFromValue(attrData, "mapperType");
+            return type is INamedTypeSymbol namedTypeSymbol ? new UseStaticMapperConfiguration(namedTypeSymbol) : null;
         }
     }
 
@@ -379,10 +397,33 @@ public class AttributeDataAccessor(SymbolAccessor symbolAccessor) : IAttributeDa
         }
     }
 
+    public GeneratedCodeAttribute? ReadGeneratedCodeAttribute(IMethodSymbol symbol)
+    {
+        var attrData = GetAttribute<GeneratedCodeAttribute>(symbol);
+        return attrData is not null
+            ? new GeneratedCodeAttribute(
+                GetSimpleValue(attrData, nameof(GeneratedCodeAttribute.Tool)) ?? string.Empty,
+                GetSimpleValue(attrData, nameof(GeneratedCodeAttribute.Version)) ?? string.Empty
+            )
+            : null;
+    }
+
     public bool IsMapperlyGenerated(IMethodSymbol method)
     {
-        var generated = AccessFirstOrDefault<GeneratedCodeAttribute>(method);
+        var generated = ReadGeneratedCodeAttribute(method);
         return string.Equals(generated?.Tool, MapperlyGeneratedCodeAttribute.GeneratorToolName, StringComparison.Ordinal);
+    }
+
+    public MapperIgnoreConfiguration? ReadMapperIgnoreConfiguration(ISymbol symbol)
+    {
+        var attrData = GetAttribute<MapperIgnoreAttribute>(symbol);
+        return attrData is not null
+            ? new MapperIgnoreConfiguration
+            {
+                Justification = GetSimpleValue(attrData, nameof(MapperIgnoreAttribute.Justification)),
+                SyntaxReference = attrData.ApplicationSyntaxReference?.GetSyntax(),
+            }
+            : null;
     }
 
     private AttributeData? GetAttribute<TAttribute>(ISymbol symbol)

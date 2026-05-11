@@ -241,6 +241,7 @@ public class EnumNamingStrategyTest
     [Fact]
     public void EnumToStringWithSerializationEnumMemberAttributeNamingStrategy()
     {
+        System.Runtime.Serialization.EnumMemberAttribute attribute = new System.Runtime.Serialization.EnumMemberAttribute();
         var source = TestSourceBuilder.MapperWithBodyAndTypes(
             "[MapEnum(EnumMappingStrategy.ByName, NamingStrategy = EnumNamingStrategy.SerializationEnumMemberAttribute)] public partial string ToStr(E source);",
             """

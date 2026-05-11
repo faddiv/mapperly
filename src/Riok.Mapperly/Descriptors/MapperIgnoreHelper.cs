@@ -9,7 +9,7 @@ internal static class MapperIgnoreHelper
 {
     public static bool CheckIgnored(ISymbol symbol, string ignoredName, SimpleMappingBuilderContext ctx)
     {
-        var ignoreConfiguration = ctx.AttributeAccessor.AccessFirstOrDefault<MapperIgnoreAttribute, MapperIgnoreConfiguration>(symbol);
+        var ignoreConfiguration = ctx.AttributeAccessor.ReadMapperIgnoreConfiguration(symbol);
         if (ignoreConfiguration == null)
             return false;
 

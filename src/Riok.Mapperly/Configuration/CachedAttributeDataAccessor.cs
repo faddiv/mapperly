@@ -141,6 +141,11 @@ public class CachedAttributeDataAccessor(IAttributeDataAccessor attributeDataAcc
         return GetOrCreateValues(symbol, (s, x) => x.ReadNotNullIfNotNullAttributes((IMethodSymbol)s));
     }
 
+    public bool IsMapperlyGenerated(IMethodSymbol method) => attributeDataAccessor.IsMapperlyGenerated(method);
+
+    public MapperIgnoreConfiguration? ReadMapperIgnoreConfiguration(ISymbol symbol) =>
+        GetOrCreateValue(symbol, (s, x) => x.ReadMapperIgnoreConfiguration(s));
+
     private T? GetOrCreateValue<T>(
         ISymbol symbol,
         Func<ISymbol, IAttributeDataAccessor, T?> createValue,

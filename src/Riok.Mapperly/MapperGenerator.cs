@@ -99,9 +99,7 @@ public class MapperGenerator : IIncrementalGenerator
         var symbolAccessor = new SymbolAccessor(compilationContext, mapperDeclaration.Symbol);
         var attributeDataAccessor = new AttributeDataAccessor(symbolAccessor);
 
-        var mapperConfiguration = attributeDataAccessor.AccessFirstOrDefault<MapperAttribute, MapperConfiguration>(
-            mapperDeclaration.Symbol
-        );
+        var mapperConfiguration = attributeDataAccessor.ReadMapperAttribute(mapperDeclaration.Symbol);
         if (mapperConfiguration == null)
             return null;
 
@@ -241,8 +239,11 @@ public class MapperGenerator : IIncrementalGenerator
         {
             ct.ThrowIfCancellationRequested();
 
-            var config = AttributeDataAccessor.Access<UseStaticMapperAttribute<object>, UseStaticMapperConfiguration>(attributeData);
-            configurations.Add(config);
+            var config = AttributeDataAccessor.ReadGenericUseStaticMapperAttributes(attributeData);
+            if (config is not null)
+            {
+                configurations.Add(config);
+            }
         }
 
         return configurations.ToImmutable();

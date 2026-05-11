@@ -32,4 +32,6 @@ public interface IAttributeDataAccessor
     string GetMappingName(IMethodSymbol methodSymbol);
     bool IsMappingNameEqualTo(IMethodSymbol methodSymbol, string name);
     IEnumerable<NotNullIfNotNullConfiguration> ReadNotNullIfNotNullAttributes(IMethodSymbol symbol);
+    bool IsMapperlyGenerated(IMethodSymbol method);
+    MapperIgnoreConfiguration? ReadMapperIgnoreConfiguration(ISymbol symbol);
 }
